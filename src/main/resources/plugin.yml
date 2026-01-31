@@ -1,0 +1,8 @@
+name: ${project.name}
+version: ${project.version}
+main: ${groupId}.E3ServerSettings
+api-version: '1.21'
+authors: [euj3ne]
+description: ${project.description}
+website: ${project.url}
+depend: [ProtocolLib]
