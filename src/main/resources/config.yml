@@ -1,20 +1,28 @@
-settings:
-  noBreak: false # Разрешить/запретить разрушение блоков
-  noPlace: false # Разрешить/запретить размещение блоков 
-  noFire: false # Разрешить/запретить возгорание
-  noExplosions: false # Разрешить/запретить взрывы
-  noDamage: false # Разрешить/запретить повреждение 
-  noHunger: false # Разрешить/запретить голод
-  noMessage: true # Разрешить/запретить сообщения о входе/выходе/смерти игроков
-  noChat: false # Разрешить/запретить чат 
-  noPlayer: false # Разрешить/запретить обработку пакетов игрока (игроки не смогут видеть других игроков нигде)
-  gameMode: SURVIVAL # Игровой режим установленный по умолчанию при игрока входе на сервер
-  fixedTime:
-    enabled: false # Разрешить/запретить фиксированное время
-    meaning: 15000 # Время в тактах
-  noCommands: 
-    enabled: false # Разрешить/запретить команды
+settings-player:
+  noPlayer: false
+  noMessage: false
+  noDamage: false
+  noHunger: false
+  noChat: false
+  gameMode: SURVIVAL
+  noCommands:
+    enabled: false
     allowed_commands:
-      - command1 # Команды, которые разрешены при включенной опции enabled
-      - command2 # Команды, которые разрешены при включенной опции enabled
-      - command3 # Команды, которые разрешены при включенной опции enabled
+      - help
+      - spawn
+
+settings-world:
+  noBreak: false
+  noPlace: false
+  noInteract: false
+  noFluidFlow: false
+  noExplosions: false
+  noWeather: false
+  noFireSpread: false
+  noLeafDecay: false
+  noGrowth: false
+  noMobGriefing: false
+  noMobSpawn: false
+  fixedTime:
+    enabled: false
+    meaning: 6000

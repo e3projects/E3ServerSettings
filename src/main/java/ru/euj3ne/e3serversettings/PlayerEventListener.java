@@ -7,24 +7,26 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.FoodLevelChangeEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
-import org.bukkit.event.player.AsyncPlayerChatEvent;
+import io.papermc.paper.event.player.AsyncChatEvent;
 import org.bukkit.event.player.PlayerCommandPreprocessEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerKickEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 
-import com.comphenix.protocol.ProtocolLibrary;
-import com.comphenix.protocol.ProtocolManager;
-import com.comphenix.protocol.events.PacketAdapter;
-import com.comphenix.protocol.events.PacketEvent;
-import com.comphenix.protocol.PacketType;
+import com.github.retrooper.packetevents.PacketEvents;
+import com.github.retrooper.packetevents.event.PacketListenerAbstract;
+import com.github.retrooper.packetevents.event.PacketSendEvent;
+import com.github.retrooper.packetevents.protocol.packettype.PacketType;
+import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerPlayerInfoUpdate;
+import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerPlayerInfoUpdate.PlayerInfo;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 public class PlayerEventListener implements Listener {
 
-    private final E3ServerSettings plugin;
-    private final ProtocolManager protocolManager;
+    private final E3ServerSettingsMain plugin;
 
     private final boolean noPlayer;
     private final boolean noMessage;
@@ -35,41 +37,63 @@ public class PlayerEventListener implements Listener {
     private final String gameModeStr;
     private final List<String> allowedCommands;
 
-    public PlayerEventListener(E3ServerSettings plugin) {
+    public PlayerEventListener(E3ServerSettingsMain plugin) {
         this.plugin = plugin;
-        this.protocolManager = ProtocolLibrary.getProtocolManager();
-        
-        var config = plugin.getConfig();
-        this.noPlayer = config.getBoolean("settings.noPlayer");
-        this.noMessage = config.getBoolean("settings.noMessage");
-        this.noDamage = config.getBoolean("settings.noDamage");
-        this.noHunger = config.getBoolean("settings.noHunger");
-        this.noChat = config.getBoolean("settings.noChat");
-        this.noCommands = config.getBoolean("settings.noCommands.enabled");
-        this.allowedCommands = config.getStringList("settings.noCommands.allowed_commands");
-        this.gameModeStr = config.getString("settings.gameMode");
 
+        var config = plugin.getConfig();
+        this.noPlayer = config.getBoolean("settings-player.noPlayer");
+        this.noMessage = config.getBoolean("settings-player.noMessage");
+        this.noDamage = config.getBoolean("settings-player.noDamage");
+        this.noHunger = config.getBoolean("settings-player.noHunger");
+        this.noChat = config.getBoolean("settings-player.noChat");
+        this.noCommands = config.getBoolean("settings-player.noCommands.enabled");
+        this.allowedCommands = config.getStringList("settings-player.noCommands.allowed_commands");
+        this.gameModeStr = config.getString("settings-player.gameMode");
 
         if (noPlayer) {
-            registerPlayerInfoPacketListener();
+            PacketEvents.getAPI().getEventManager().registerListener(new PacketListenerAbstract() {
+                @Override
+                public void onPacketSend(PacketSendEvent event) {
+                    if (event.getPacketType() != PacketType.Play.Server.PLAYER_INFO_UPDATE) return;
+
+                    UUID receiverUUID = event.getUser().getUUID();
+                    WrapperPlayServerPlayerInfoUpdate wrapper = new WrapperPlayServerPlayerInfoUpdate(event);
+
+                    List<PlayerInfo> filtered = new ArrayList<>();
+                    for (PlayerInfo entry : wrapper.getEntries()) {
+                        if (!entry.getGameProfile().getUUID().equals(receiverUUID)) continue;
+
+                        if (wrapper.getActions().contains(WrapperPlayServerPlayerInfoUpdate.Action.UPDATE_LISTED)) {
+                            filtered.add(new PlayerInfo(
+                                entry.getGameProfile(),
+                                false,
+                                entry.getLatency(),
+                                entry.getGameMode(),
+                                entry.getDisplayName(),
+                                entry.getChatSession()
+                            ));
+                        } else {
+                            filtered.add(entry);
+                        }
+                    }
+
+                    if (filtered.isEmpty()) {
+                        event.setCancelled(true);
+                    } else {
+                        wrapper.setEntries(filtered);
+                    }
+                }
+            });
         }
     }
 
-    private void registerPlayerInfoPacketListener() {
-        protocolManager.addPacketListener(new PacketAdapter(plugin, PacketType.Play.Server.PLAYER_INFO) {
-            @Override
-            public void onPacketSending(PacketEvent event) {
-                event.setCancelled(true);
-            }
-        });
-    }
-
     private void setPlayerGameMode(Player player) {
+        if (gameModeStr == null) return;
         try {
             GameMode gameMode = GameMode.valueOf(gameModeStr.toUpperCase());
             player.setGameMode(gameMode);
         } catch (IllegalArgumentException e) {
-            plugin.getLogger().warning("Неверный игровой режим в конфиге: " + gameModeStr);
+            plugin.getLogger().warning("Incorrect gamemode in the config: " + gameModeStr);
         }
     }
 
@@ -78,6 +102,14 @@ public class PlayerEventListener implements Listener {
         Player player = event.getPlayer();
         if (noMessage) {
             event.setJoinMessage(null);
+        }
+        if (noPlayer) {
+            for (Player online : plugin.getServer().getOnlinePlayers()) {
+                if (!online.equals(player)) {
+                    player.hidePlayer(plugin, online);
+                    online.hidePlayer(plugin, player);
+                }
+            }
         }
         setPlayerGameMode(player);
     }
@@ -117,7 +149,7 @@ public class PlayerEventListener implements Listener {
     }
 
     @EventHandler
-    public void onPlayerChat(AsyncPlayerChatEvent event) {
+    public void onPlayerChat(AsyncChatEvent event) {
         if (noChat) {
             event.setCancelled(true);
         }
@@ -126,7 +158,7 @@ public class PlayerEventListener implements Listener {
     @EventHandler
     public void onPlayerCommandPreprocess(PlayerCommandPreprocessEvent event) {
         if (noCommands) {
-            String command = event.getMessage().split(" ")[0].substring(1);
+            String command = event.getMessage().split(" ")[0].substring(1).toLowerCase();
             if (!allowedCommands.contains(command)) {
                 event.setCancelled(true);
             }
